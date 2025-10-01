@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Catch the Dot — Advanced</title>
+<style>
+  :root{
+    --bg:#071027;
+    --card:#0b1220;
+    --accent:#06b6d4;
+    --accent2:#22c55e;
+    --muted:#94a3b8;
+    --danger:#ef4444;
+    --glass: rgba(255,255,255,0.03);
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background:linear-gradient(180deg,#021022 0%, var(--bg) 100%);
+    color:#e6eef8;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:20px;
+  }
+  .container{
+    width:100%;
+    max-width:1000px;
+    display:grid;
+    grid-template-columns:320px 1fr;
+    gap:18px;
+  }
+  .panel{
+    background:linear-gradient(180deg,var(--glass), rgba(0,0,0,0.05));
+    border-radius:var(--radius);
+    padding:14px;
+    border:1px solid rgba(255,255,255,0.04);
+    box-shadow:0 8px 30px rgba(2,6,23,0.6);
+  }
+  .title{font-weight:800;font-size:18px;margin-bottom:6px}
+  .muted{color:var(--muted);font-size:13px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .btn{
+    background:linear-gradient(180deg,var(--accent), #0596a5);
+    border:none;color:#021024;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;
+  }
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+  .grid{
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .play-area{
+    position:relative;overflow:hidden;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.04));
+    border:1px dashed rgba(255,255,255,0.02);
+    min-height:480px;
+  }
+  .stats{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{
+    background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;min-width:110px;text-align:center;
+  }
+  .big{font-size:20px;font-weight:800;color:#fff}
+  .dot{
+    position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#021024;
+    font-weight:700;user-select:none;touch-action:none;
+    box-shadow:0 6px 20px rgba(0,0,0,0.45), inset 0 -6px 10px rgba(255,255,255,0.06);
+    transform: translate(-50%,-50%) scale(1);
+    transition: transform 120ms ease, opacity 200ms linear;
+    will-change: transform, left, top;
+    cursor:pointer;
+  }
+  .hud-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .settings label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+  input[type=range]{width:100%}
+  .footer{margin-top:10px;text-align:center;font-size:13px;color:var(--muted)}
+  @media (max-width:880px){
+    .container{grid-template-columns:1fr}
+    .play-area{min-height:420px}
+  }
+</style>
+</head>
+<body>
+  <div class="container" aria-live="polite">
+    <div class="panel left">
+      <div class="title">Catch the Dot</div>
+      <div class="muted">Click or tap targets. Avoid empty clicks. High score stored locally.</div>
+      <div style="height:12px"></div>
+
+      <div class="controls">
+        <button id="startBtn" class="btn">Start</button>
+        <button id="pauseBtn" class="btn ghost" disabled>Pause</button>
+        <button id="restartBtn" class="btn ghost" disabled>Restart</button>
+        <button id="soundBtn" class="btn ghost">Sound: On</button>
+      </div>
+
+      <div class="stat" style="margin-bottom:8px">
+        <div style="font-size:13px;color:var(--muted)">High Score</div>
+        <div id="best" class="big">0</div>
+      </div>
+
+      <div class="stats" style="margin-bottom:10px">
+        <div class="stat">
+          <div class="muted">Score</div>
+          <div id="score" class="big">0</div>
+        </div>
+        <div class="stat">
+          <div class="muted">Time</div>
+          <div id="time" class="big">30</div>
+        </div>
+        <div class="stat">
+          <div class="muted">Combo</div>
+          <div id="combo" class="big">x1</div>
+        </div>
+      </div>
+
+      <div class="grid settings">
+        <div>
+          <label for="duration">Duration (seconds): <span id="durationLabel">30</span></label>
+          <input id="duration" type="range" min="10" max="120" value="30">
+        </div>
+        <div>
+          <label for="baseSpawn">Base spawn interval (ms): <span id="spawnLabel">700</span></label>
+          <input id="baseSpawn" type="range" min="150" max="1400" value="700">
+        </div>
+        <div>
+          <label for="concurrency">Max targets at once: <span id="conLabel">2</span></label>
+          <input id="concurrency" type="range" min="1" max="6" value="2">
+        </div>
+        <div>
+          <label for="penalty">Empty-click penalty: <span id="penLabel">1</span> points</label>
+          <input id="penalty" type="range" min="0" max="5" value="1">
+        </div>
+        <div style="font-size:13px;color:var(--muted)">
+          Keyboard: Space to Start/Pause, R to Restart.
+        </div>
+      </div>
+
+      <div class="footer" id="message">Ready to play — press Start.</div>
+    </div>
+
+    <div class="panel">
+      <div class="hud-row">
+        <div class="muted">Game Area</div>
+        <div class="muted">Hits: <span id="hits">0</span> Misses: <span id="misses">0</span> Accuracy: <span id="acc">0%</span></div>
+      </div>
+      <div id="playArea" class="play-area" tabindex="0" aria-label="Play area — click targets" role="application"></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Elements
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const playArea = document.getElementById('playArea');
+  const scoreEl = document.getElementById('score');
+  const timeEl = document.getElementById('time');
+  const comboEl = document.getElementById('combo');
+  const bestEl = document.getElementById('best');
+  const messageEl = document.getElementById('message');
+  const hitsEl = document.getElementById('hits');
+  const missesEl = document.getElementById('misses');
+  const accEl = document.getElementById('acc');
+
+  const durationInput = document.getElementById('duration');
+  const durationLabel = document.getElementById('durationLabel');
+  const baseSpawnInput = document.getElementById('baseSpawn');
+  const spawnLabel = document.getElementById('spawnLabel');
+  const concurrencyInput = document.getElementById('concurrency');
+  const conLabel = document.getElementById('conLabel');
+  const penaltyInput = document.getElementById('penalty');
+  const penLabel = document.getElementById('penLabel');
+
+  // State
+  let score = 0;
+  let remaining = parseInt(durationInput.value,10);
+  let timerId = null;
+  let spawnTimerId = null;
+  let activeTargets = new Map(); // id -> element
+  let nextId = 1;
+  let running = false;
+  let paused = false;
+  let hits = 0;
+  let misses = 0;
+  let combo = 0;
+  let lastHitAt = 0;
+  let highScore = 0;
+  let soundOn = true;
+  const STORAGE_KEY = 'catch-the-dot-highscore-v1';
+
+  // Small WebAudio for click/success
+  const AudioEngine = (function(){
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      function beep(freq=800, t=0.06, vol=0.12){
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        g.gain.value = vol;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        const now = ctx.currentTime;
+        g.gain.setValueAtTime(vol, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + t);
+        o.stop(now + t + 0.02);
+      }
+      return {beep, ctx};
+    } catch(e){ return {beep: ()=>{}}; }
+  })();
+
+  // Util
+  function rand(min,max){ return Math.floor(Math.random()*(max-min+1)) + min; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function formatPct(h,m){ return m===0 ? '0%' : Math.round((h/(h+m))*100) + '%'; }
+
+  // Load high score
+  try { highScore = parseInt(localStorage.getItem(STORAGE_KEY)) || 0; } catch(e){ highScore = 0; }
+  bestEl.textContent = highScore;
+
+  // UI labels
+  function refreshLabels(){
+    durationLabel.textContent = durationInput.value;
+    spawnLabel.textContent = baseSpawnInput.value;
+    conLabel.textContent = concurrencyInput.value;
+    penLabel.textContent = penaltyInput.value;
+  }
+  refreshLabels();
+
+  // Clean single target safely
+  function removeTarget(id){
+    const el = activeTargets.get(id);
+    if (!el) return;
+    el.removeEventListener('pointerdown', onTargetPointerDown);
+    el.remove();
+    activeTargets.delete(id);
+  }
+
+  // Create a target with params
+  function spawnTarget(){
+    if (!running || paused) return;
+    // concurrency guard
+    const maxTargets = parseInt(concurrencyInput.value,10);
+    if (activeTargets.size >= maxTargets) return;
+
+    const rect = playArea.getBoundingClientRect();
+    if (rect.width < 60 || rect.height < 60) return;
+
+    const id = nextId++;
+    const el = document.createElement('div');
+    el.className = 'dot';
+    const life = rand(1200, 2800); // ms before auto-fade
+    // size and color scale with difficulty
+    const baseSpawn = parseInt(baseSpawnInput.value,10);
+    const difficultyFactor = 1 - clamp((score / Math.max(20, durationInput.value)), 0, 0.8);
+    const size = Math.max(28, Math.round(48 * (0.6 + difficultyFactor)));
+    el.style.width = el.style.height = size + 'px';
+    // position
+    const pad = Math.max(12, size/2 + 6);
+    const left = rand(pad, Math.max(pad, Math.floor(rect.width - pad)));
+    const top = rand(pad, Math.max(pad, Math.floor(rect.height - pad)));
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    // styling
+    const hue = rand(160, 200);
+    el.style.background = `radial-gradient(circle at 30% 30%, #fff, hsl(${hue}deg 70% 45%))`;
+    el.style.opacity = '1';
+    el.dataset.id = id;
+    el.dataset.score = Math.round(10 * (size/48)); // larger target yields more points
+    el.setAttribute('role','button');
+    el.setAttribute('aria-label', 'target');
+
+    // pointerdown covers mouse/touch and prevents multi events
+    el.addEventListener('pointerdown', onTargetPointerDown);
+    // auto remove after life
+    const fadeTimer = setTimeout(() => {
+      if (activeTargets.has(id)) {
+        // remove target and count as miss
+        removeTarget(id);
+        misses++;
+        updateStats();
+        if (soundOn) AudioEngine.beep(220,0.06,0.12);
+      }
+    }, life);
+
+    // store element and timer for cleanup
+    activeTargets.set(id, el);
+    el._fadeTimer = fadeTimer;
+    playArea.appendChild(el);
+    // small pop
+    requestAnimationFrame(()=> el.style.transform = 'translate(-50%,-50%) scale(1.08)');
+    setTimeout(()=> el.style.transform = 'translate(-50%,-50%) scale(1)', 100);
+  }
+
+  // Handle hits
+  function onTargetPointerDown(e){
+    e.preventDefault();
+    const el = e.currentTarget;
+    // identify id
+    const id = parseInt(el.dataset.id,10);
+    if (!activeTargets.has(id)) return;
+    // compute points
+    const basePoints = parseInt(el.dataset.score,10) || 1;
+    const now = Date.now();
+    if (now - lastHitAt <= 900) {
+      combo = combo + 1;
+    } else {
+      combo = 1;
+    }
+    lastHitAt = now;
+    const multiplier = 1 + Math.floor(combo/3) * 0.5; // small step multiplier
+    const points = Math.round(basePoints * multiplier);
+    score += points;
+    hits++;
+    updateStats();
+    // flash and remove
+    try { clearTimeout(el._fadeTimer); } catch(e){}
+    removeTarget(id);
+    // audio
+    if (soundOn) AudioEngine.beep(900 + Math.random()*200, 0.06, 0.14);
+    // small message
+    messageEl.textContent = `+${points}  (combo x${combo})`;
+  }
+
+  // Click on empty area penalty
+  function onAreaPointerDown(e){
+    // only process left/tap
+    if (!running || paused) return;
+    // ignore if clicked on a dot (pointerdown bubbles after target handled)
+    if (e.target !== playArea) return;
+    const pen = parseInt(penaltyInput.value,10);
+    if (pen > 0) {
+      score = Math.max(0, score - pen);
+      misses++;
+      combo = 0;
+      updateStats();
+      messageEl.textContent = `Miss -${pen}`;
+      if (soundOn) AudioEngine.beep(200,0.07,0.12);
+    }
+  }
+
+  // Update HUD
+  function updateStats(){
+    scoreEl.textContent = score;
+    comboEl.textContent = 'x' + combo;
+    hitsEl.textContent = hits;
+    missesEl.textContent = misses;
+    accEl.textContent = formatPct(hits, misses);
+  }
+
+  // Spawn loop control
+  function scheduleSpawning(){
+    clearInterval(spawnTimerId);
+    const base = parseInt(baseSpawnInput.value,10);
+    // dynamic spawn rate based on score and remaining time
+    const elapsed = parseInt(durationInput.value,10) - remaining;
+    const dynamic = Math.max(0, Math.floor(Math.log(Math.max(1,1 + score))*30));
+    const interval = Math.max(120, base - dynamic - Math.floor(elapsed * 5));
+    spawnTimerId = setInterval(spawnTarget, interval);
+  }
+
+  // Timer tick
+  function startTimer(){
+    clearInterval(timerId);
+    timerId = setInterval(() => {
+      if (!running || paused) return;
+      remaining--;
+      timeEl.textContent = remaining;
+      if (remaining <= 0) {
+        endGame();
+      } else if (remaining % 5 === 0) {
+        // occasionally adjust spawn speed
+        scheduleSpawning();
+      }
+    }, 1000);
+  }
+
+  // Start
+  function startGame(){
+    if (running && !paused) return;
+    if (!running) {
+      // init
+      running = true;
+      paused = false;
+      score = 0; hits = 0; misses = 0; combo = 0; lastHitAt = 0;
+      remaining = parseInt(durationInput.value,10);
+      nextId = 1;
+      activeTargets.forEach((_, id) => removeTarget(id));
+      updateStats();
+      bestEl.textContent = highScore;
+      messageEl.textContent = 'Go!';
+      playArea.focus();
+    } else if (paused) {
+      paused = false;
+      messageEl.textContent = 'Resumed';
+    }
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    restartBtn.disabled = false;
+    scheduleSpawning();
+    startTimer();
+  }
+
+  function pauseGame(){
+    if (!running) return;
+    paused = !paused;
+    if (paused) {
+      messageEl.textContent = 'Paused';
+      pauseBtn.textContent = 'Resume';
+      clearInterval(spawnTimerId);
+      clearInterval(timerId);
+    } else {
+      messageEl.textContent = 'Resumed';
+      pauseBtn.textContent = 'Pause';
+      scheduleSpawning();
+      startTimer();
+    }
+  }
+
+  function endGame(){
+    // stop everything
+    running = false;
+    paused = false;
+    clearInterval(spawnTimerId); spawnTimerId = null;
+    clearInterval(timerId); timerId = null;
+    // remove remaining targets
+    activeTargets.forEach((_, id) => removeTarget(id));
+    // finalize stats
+    messageEl.textContent = `Game over — Score: ${score}`;
+    if (score > highScore) {
+      highScore = score;
+      try { localStorage.setItem(STORAGE_KEY, highScore); } catch(e){}
+      bestEl.textContent = highScore;
+      messageEl.textContent += ' — New High Score!';
+      if (soundOn) AudioEngine.beep(1200,0.12,0.18);
+    }
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = 'Pause';
+  }
+
+  function restartGame(){
+    // ensure clear
+    running = false; paused = false;
+    clearInterval(spawnTimerId); spawnTimerId = null;
+    clearInterval(timerId); timerId = null;
+    activeTargets.forEach((_, id) => removeTarget(id));
+    score = 0; hits = 0; misses = 0; combo = 0;
+    remaining = parseInt(durationInput.value,10);
+    updateStats();
+    timeEl.textContent = remaining;
+    messageEl.textContent = 'Ready — press Start';
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    restartBtn.disabled = true;
+  }
+
+  // Sound toggle
+  function toggleSound(){
+    soundOn = !soundOn;
+    soundBtn.textContent = 'Sound: ' + (soundOn ? 'On' : 'Off');
+  }
+
+  // Cleanup listener
+  function onUnload(){
+    clearInterval(spawnTimerId); clearInterval(timerId);
+    activeTargets.forEach((_, id) => removeTarget(id));
+  }
+
+  // Global event listeners
+  playArea.addEventListener('pointerdown', onAreaPointerDown);
+  startBtn.addEventListener('click', startGame);
+  pauseBtn.addEventListener('click', pauseGame);
+  restartBtn.addEventListener('click', restartGame);
+  soundBtn.addEventListener('click', toggleSound);
+
+  // keyboard
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (!running) startGame();
+      else pauseGame();
+    } else if (e.key.toLowerCase() === 'r') {
+      restartGame();
+    }
+  });
+
+  // inputs
+  [durationInput, baseSpawnInput, concurrencyInput, penaltyInput].forEach(inp=>{
+    inp.addEventListener('input', () => { refreshLabels(); });
+  });
+
+  // touch/mouse safety: prevent multi-pointer double scoring
+  playArea.addEventListener('pointerdown', (e)=>{
+    // stop propagation on area-level to avoid accidental double handling
+  });
+
+  // cleanup on unload
+  window.addEventListener('beforeunload', onUnload);
+  window.addEventListener('unload', onUnload);
+
+  // initial UI
+  timeEl.textContent = remaining;
+  updateStats();
+  refreshLabels();
+
+  // expose for debug (optional)
+  window._ctd = { startGame, pauseGame, restartGame, spawnTarget, endGame };
+
+})();
+</script>
+</body>
+</html>
